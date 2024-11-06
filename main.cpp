@@ -89,9 +89,9 @@ void drawMap(SDL_Renderer *renderer)
 
 void raycast(Player *player, SDL_Renderer *renderer)
 {
-    int rayAngle = FixAngle(player->angle - 30);
+    int rayAngle = FixAngle(player->angle - (player->FOV / 2));
 
-    for (int i = 0; i < 60; i++)
+    for (int i = 0; i < player->FOV; i++)
     {
         int rayX = player->pos.x;
         int rayY = player->pos.y;
@@ -168,11 +168,11 @@ void raycast(Player *player, SDL_Renderer *renderer)
 
         int horizontalRayX = rayX;
         int horizontalRayY = rayY;
-        //vertical
+        // vertical
 
         rayX = player->pos.x;
         rayY = player->pos.y;
-        cellIndexY = floor(rayY / cellWidth);
+        cellIndexX = floor(rayX / cellWidth);
 
         if (cos(degToRad(rayAngle)) > 0)
         {
@@ -190,7 +190,7 @@ void raycast(Player *player, SDL_Renderer *renderer)
                 dx = -cellWidth;
             }
         }
-        dy = dx / (1/tan(degToRad(rayAngle)));
+        dy = dx / (1 / tan(degToRad(rayAngle)));
 
         float distanceVertical = 10000000;
         rayY = rayY + dy;
@@ -220,7 +220,7 @@ void raycast(Player *player, SDL_Renderer *renderer)
             {
                 dx = -cellWidth;
             }
-            dy = dx / (1/tan(degToRad(rayAngle)));
+            dy = dx / (1 / tan(degToRad(rayAngle)));
 
             rayY = rayY + dy;
             rayX = rayX + dx;
@@ -242,11 +242,22 @@ void raycast(Player *player, SDL_Renderer *renderer)
         }
 
         rayAngle = FixAngle(rayAngle + 1);
-
+        /*
         SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
         SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, horizontalRayX, horizontalRayY);
         SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
         SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
+        */
+
+        SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
+        if (distanceHorizontal < distanceVertical)
+        {
+            SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, horizontalRayX, horizontalRayY);
+        }
+        else
+        {
+            SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
+        }
     }
 }
 
@@ -267,11 +278,11 @@ void handleInput(Player *player)
 
     if (keystate[SDL_SCANCODE_A])
     {
-        player->angle += rotateSpeed;
+        player->angle -= rotateSpeed;
     }
     if (keystate[SDL_SCANCODE_D])
     {
-        player->angle -= rotateSpeed;
+        player->angle += rotateSpeed;
     }
 
     if (keystate[SDL_SCANCODE_LEFT])
@@ -294,7 +305,7 @@ int main()
         return 1;
     }
 
-    SDL_Window *window = SDL_CreateWindow("SDL2 Pixel Drawing", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 512, 512, SDL_WINDOW_SHOWN);
+    SDL_Window *window = SDL_CreateWindow("Psudo 3d Raytracer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 512, 512, SDL_WINDOW_SHOWN);
     if (!window)
     {
         std::cerr << "Window could not be created! SDL_Error: " << SDL_GetError() << std::endl;
@@ -311,7 +322,7 @@ int main()
         return 1;
     }
 
-    Player player = {{400.0f, 300.0f}, 0.0f, 90};
+    Player player = {{400.0f, 300.0f}, 0.0f, 60};
 
     bool running = true;
     while (running)
@@ -330,7 +341,7 @@ int main()
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
         drawMap(renderer);
-        
+
         raycast(&player, renderer);
         // SDL_RenderDrawPoint(renderer, static_cast<int>(player.pos.x), static_cast<int>(player.pos.y));
 

@@ -117,7 +117,7 @@ void raycast(Player *player, SDL_Renderer *renderer)
         }
         dx = dy / tan(degToRad(rayAngle));
 
-        float distanceVertical = 10000000;
+        float distanceHorizontal = 10000000;
         rayY = rayY + dy;
         rayX = rayX + dx;
         int cellIndexX = floor(rayX / cellWidth);
@@ -132,7 +132,7 @@ void raycast(Player *player, SDL_Renderer *renderer)
         if (map[mapCellIndex] == 1 || map[getCell(cellIndexX, cellIndexY - 1)] == 1)
         {
             depth = 8;
-            distanceVertical = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
+            distanceHorizontal = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
         }
         while (depth < 8)
         {
@@ -161,6 +161,81 @@ void raycast(Player *player, SDL_Renderer *renderer)
             if (map[mapCellIndex] == 1 || map[getCell(cellIndexX, cellIndexY - 1)] == 1)
             {
                 depth = 8;
+                distanceHorizontal = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
+            }
+            depth++;
+        }
+
+        int horizontalRayX = rayX;
+        int horizontalRayY = rayY;
+        //vertical
+
+        rayX = player->pos.x;
+        rayY = player->pos.y;
+        cellIndexY = floor(rayY / cellWidth);
+
+        if (cos(degToRad(rayAngle)) > 0)
+        {
+            dx = cellWidth - (rayX - (cellWidth * cellIndexX));
+            if (dx == 0)
+            {
+                dx = cellWidth;
+            }
+        }
+        else
+        {
+            dx = -(rayX - (cellWidth * cellIndexX));
+            if (dx == 0)
+            {
+                dx = -cellWidth;
+            }
+        }
+        dy = dx / (1/tan(degToRad(rayAngle)));
+
+        float distanceVertical = 10000000;
+        rayY = rayY + dy;
+        rayX = rayX + dx;
+        cellIndexX = floor(rayX / cellWidth);
+        cellIndexY = floor(rayY / cellWidth);
+        depth = 0;
+        mapCellIndex = getCell(cellIndexX, cellIndexY);
+
+        if (mapCellIndex == -1)
+        {
+            depth = 8;
+        }
+        if (map[mapCellIndex] == 1 || map[getCell(cellIndexX - 1, cellIndexY)] == 1)
+        {
+            depth = 8;
+            distanceVertical = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
+        }
+        while (depth < 8)
+        {
+
+            if (cos(degToRad(rayAngle)) > 0)
+            {
+                dx = cellWidth;
+            }
+            else
+            {
+                dx = -cellWidth;
+            }
+            dy = dx / (1/tan(degToRad(rayAngle)));
+
+            rayY = rayY + dy;
+            rayX = rayX + dx;
+            cellIndexX = floor(rayX / cellWidth);
+            cellIndexY = floor(rayY / cellWidth);
+            int mapCellIndex = getCell(cellIndexX, cellIndexY);
+
+            if (mapCellIndex == -1)
+            {
+                depth = 8;
+            }
+
+            if (map[mapCellIndex] == 1 || map[getCell(cellIndexX - 1, cellIndexY)] == 1)
+            {
+                depth = 8;
                 distanceVertical = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
             }
             depth++;
@@ -168,6 +243,9 @@ void raycast(Player *player, SDL_Renderer *renderer)
 
         rayAngle = FixAngle(rayAngle + 1);
 
+        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+        SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, horizontalRayX, horizontalRayY);
+        SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
         SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
     }
 }
@@ -252,7 +330,7 @@ int main()
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
         drawMap(renderer);
-        SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+        
         raycast(&player, renderer);
         // SDL_RenderDrawPoint(renderer, static_cast<int>(player.pos.x), static_cast<int>(player.pos.y));
 

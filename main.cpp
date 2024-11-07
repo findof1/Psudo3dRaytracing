@@ -7,7 +7,7 @@
 #include <array>
 
 const float moveSpeed = 2.f;
-const float rotateSpeed = 15.f;
+const float rotateSpeed = 3.f;
 
 struct Player
 {
@@ -15,7 +15,28 @@ struct Player
     float angle;
     float FOV;
 };
+#define mapX 16
+#define mapY 16
+#define mapS 256
+#define cellWidth 64
 
+int map[] = {
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    1, 0, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1,
+    1, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1,
+    1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 1, 0, 1,
+    1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1,
+    1, 0, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1,
+    1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+    1, 1, 1, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+    1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1,
+    1, 0, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1,
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1,
+    1, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0, 1,
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1,
+    1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+/*
 #define mapX 8
 #define mapY 8
 #define mapS 64
@@ -29,9 +50,9 @@ int map[] =
         1, 0, 0, 0, 0, 0, 0, 1,
         1, 0, 0, 0, 0, 1, 0, 1,
         1, 0, 0, 0, 0, 0, 0, 1,
-        1, 1, 1, 1, 1, 1, 1, 1};
+        1, 1, 1, 1, 1, 1, 1, 1};*/
 
-int FixAngle(int a)
+float FixAngle(float a)
 {
     if (a > 359)
     {
@@ -44,7 +65,7 @@ int FixAngle(int a)
     return a;
 }
 
-float degToRad(int angle) { return angle * M_PI / 180.0; }
+float degToRad(float angle) { return angle * M_PI / 180.0; }
 
 int getCell(int x, int y)
 {
@@ -89,9 +110,9 @@ void drawMap(SDL_Renderer *renderer)
 
 void raycast(Player *player, SDL_Renderer *renderer)
 {
-    int rayAngle = FixAngle(player->angle - (player->FOV / 2));
+    float rayAngle = FixAngle(player->angle - (player->FOV / 2));
 
-    for (int i = 0; i < player->FOV; i++)
+    for (float i = 0; i < player->FOV; i += 0.25)
     {
         int rayX = player->pos.x;
         int rayY = player->pos.y;
@@ -127,14 +148,14 @@ void raycast(Player *player, SDL_Renderer *renderer)
 
         if (mapCellIndex == -1)
         {
-            depth = 8;
+            depth = 16;
         }
         if (map[mapCellIndex] == 1 || map[getCell(cellIndexX, cellIndexY - 1)] == 1)
         {
-            depth = 8;
+            depth = 16;
             distanceHorizontal = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
         }
-        while (depth < 8)
+        while (depth < 16)
         {
 
             if (sin(degToRad(rayAngle)) > 0)
@@ -155,12 +176,12 @@ void raycast(Player *player, SDL_Renderer *renderer)
 
             if (mapCellIndex == -1)
             {
-                depth = 8;
+                depth = 16;
             }
 
             if (map[mapCellIndex] == 1 || map[getCell(cellIndexX, cellIndexY - 1)] == 1)
             {
-                depth = 8;
+                depth = 16;
                 distanceHorizontal = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
             }
             depth++;
@@ -202,14 +223,14 @@ void raycast(Player *player, SDL_Renderer *renderer)
 
         if (mapCellIndex == -1)
         {
-            depth = 8;
+            depth = 16;
         }
         if (map[mapCellIndex] == 1 || map[getCell(cellIndexX - 1, cellIndexY)] == 1)
         {
-            depth = 8;
+            depth = 16;
             distanceVertical = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
         }
-        while (depth < 8)
+        while (depth < 16)
         {
 
             if (cos(degToRad(rayAngle)) > 0)
@@ -230,18 +251,18 @@ void raycast(Player *player, SDL_Renderer *renderer)
 
             if (mapCellIndex == -1)
             {
-                depth = 8;
+                depth = 16;
             }
 
             if (map[mapCellIndex] == 1 || map[getCell(cellIndexX - 1, cellIndexY)] == 1)
             {
-                depth = 8;
+                depth = 16;
                 distanceVertical = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
             }
             depth++;
         }
 
-        rayAngle = FixAngle(rayAngle + 1);
+        rayAngle = FixAngle(rayAngle + 0.25);
         /*
         SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
         SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, horizontalRayX, horizontalRayY);
@@ -249,15 +270,26 @@ void raycast(Player *player, SDL_Renderer *renderer)
         SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
         */
 
-        SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
-        if (distanceHorizontal < distanceVertical)
+        // SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
+        if (distanceVertical < distanceHorizontal)
         {
-            SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, horizontalRayX, horizontalRayY);
+            // SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, horizontalRayX, horizontalRayY);
+            SDL_SetRenderDrawColor(renderer, 0, 155, 0, 255);
         }
         else
         {
-            SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
+            SDL_SetRenderDrawColor(renderer, 0, 100, 0, 255);
+            // SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
         }
+
+        float distance = std::min(distanceHorizontal, distanceVertical);
+        float correctedDistance = distance * cos(degToRad(FixAngle(player->angle - rayAngle)));
+        SDL_Rect rectangle;
+        rectangle.x = i * (1024 / (player->FOV));
+        rectangle.h = (64 * 512) / correctedDistance;
+        rectangle.y = (512 / 2) - (rectangle.h / 2);
+        rectangle.w = ((1024 / (player->FOV)) + 3) * 0.25;
+        SDL_RenderFillRect(renderer, &rectangle);
     }
 }
 
@@ -305,7 +337,7 @@ int main()
         return 1;
     }
 
-    SDL_Window *window = SDL_CreateWindow("Psudo 3d Raytracer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 512, 512, SDL_WINDOW_SHOWN);
+    SDL_Window *window = SDL_CreateWindow("Psudo 3d Raytracer", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1024, 512, SDL_WINDOW_SHOWN);
     if (!window)
     {
         std::cerr << "Window could not be created! SDL_Error: " << SDL_GetError() << std::endl;
@@ -340,7 +372,23 @@ int main()
 
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        drawMap(renderer);
+        // drawMap(renderer);
+
+        SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
+        SDL_Rect bottomBackground;
+        bottomBackground.x = 0;
+        bottomBackground.h = 256;
+        bottomBackground.y = 256;
+        bottomBackground.w = 1024;
+        SDL_RenderFillRect(renderer, &bottomBackground);
+
+        SDL_SetRenderDrawColor(renderer, 51, 197, 255, 255);
+        SDL_Rect topBackground;
+        topBackground.x = 0;
+        topBackground.h = 256;
+        topBackground.y = 0;
+        topBackground.w = 1024;
+        SDL_RenderFillRect(renderer, &topBackground);
 
         raycast(&player, renderer);
         // SDL_RenderDrawPoint(renderer, static_cast<int>(player.pos.x), static_cast<int>(player.pos.y));

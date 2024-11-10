@@ -21,6 +21,27 @@ struct Player
 #define mapS 256
 #define cellWidth 64
 
+enum SpriteType
+{
+    Key,
+    Light,
+    Enemy
+};
+
+struct Sprite
+{
+    SpriteType type;
+    int state;
+    float x, y, z;
+    float width, height;
+};
+
+Sprite sprites[1];
+
+const float rayStep = 0.25;
+
+float distances[241];
+
 int map[] = {
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
     2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
@@ -104,7 +125,7 @@ void drawMap(SDL_Renderer *renderer)
 void raycast(Player *player, SDL_Renderer *renderer)
 {
     float rayAngle = FixAngle(player->angle - (player->FOV / 2));
-    float rayStep = 0.25;
+
     for (float i = 0; i < player->FOV; i += rayStep)
     {
         float rayX = player->pos.x;
@@ -260,7 +281,7 @@ void raycast(Player *player, SDL_Renderer *renderer)
 
         float distance = std::min(distanceHorizontal, distanceVertical);
         float correctedDistance = distance * cos(degToRad(FixAngle(player->angle - rayAngle)));
-
+        distances[static_cast<int>(i / rayStep)] = distance;
         SDL_FRect rectangle;
         rectangle.x = i * (1024 / (player->FOV));
         rectangle.h = (64 * 512) / correctedDistance;
@@ -284,6 +305,54 @@ void raycast(Player *player, SDL_Renderer *renderer)
             smallRect.h = smallRectHeight;
 
             SDL_RenderFillRectF(renderer, &smallRect);
+        }
+    }
+}
+
+void drawSprites(SDL_Renderer *renderer, Player *player)
+{
+    for (int i = 0; i < 1; i++)
+    {
+        float spriteX = sprites[i].x - player->pos.x;
+        float spriteY = sprites[i].y - player->pos.y;
+        float spriteZ = sprites[i].z;
+
+        float angleRad = -degToRad(player->angle);
+        float rotatedX = spriteY * cos(angleRad) + spriteX * sin(angleRad);
+        float rotatedY = spriteX * cos(angleRad) - spriteY * sin(angleRad);
+
+        if (rotatedY > 0)
+        {
+
+            float fovFactor = 512.0f / tan(degToRad(player->FOV / 2));
+
+            float projectedX = (rotatedX * fovFactor / rotatedY) + (1024 / 2);
+            float projectedY = (spriteZ * fovFactor / rotatedY) + (512 / 2);
+
+            float distance = sqrt(pow(spriteX, 2) + pow(spriteY, 2));
+
+            float preCalculatedWidth = (1024 / (player->FOV)) * rayStep + (1024.f / distance);
+            float preCalculatedHeight = (1024 / (player->FOV)) * rayStep + (512.f / distance);
+
+            for (int x = 0; x < sprites[i].width; x++)
+            {
+                float recX = projectedX + ((x * 256) / distance);
+
+                if (recX >= 0 && distance < distances[static_cast<int>((recX) / (1024 / 240))])
+                {
+
+                    for (int y = 0; y < sprites[i].height; y++)
+                    {
+                        SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
+                        SDL_FRect rectangle;
+                        rectangle.x = recX;
+                        rectangle.y = projectedY - ((y * 256) / distance);
+                        rectangle.w = preCalculatedWidth;
+                        rectangle.h = preCalculatedHeight;
+                        SDL_RenderFillRectF(renderer, &rectangle);
+                    }
+                }
+            }
         }
     }
 }
@@ -367,6 +436,15 @@ int main()
     }
 
     Player player = {{80.0f, 80.0f}, 0.0f, 60};
+    Sprite key;
+    key.state = 1;
+    key.type = Key;
+    key.x = 85;
+    key.y = 85;
+    key.z = 20;
+    key.width = 20;
+    key.height = 60;
+    sprites[0] = key;
 
     bool running = true;
     while (running)
@@ -404,7 +482,7 @@ int main()
 
         raycast(&player, renderer);
         // SDL_RenderDrawPoint(renderer, static_cast<int>(player.pos.x), static_cast<int>(player.pos.y));
-
+        drawSprites(renderer, &player);
         SDL_RenderPresent(renderer);
 
         SDL_Delay(16);

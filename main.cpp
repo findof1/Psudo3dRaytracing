@@ -70,7 +70,7 @@ int mapFloors[] = {
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
     2, 3, 3, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
     2, 0, 3, 3, 3, 0, 4, 0, 4, 4, 6, 6, 6, 6, 0, 2,
-    2, 0, 3, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 6, 0, 2,
+    2, 0, 3, 0, 0, 0, 4, 0, 0, 0, 6, 0, 0, 6, 0, 2,
     2, 0, 3, 0, 4, 4, 4, 4, 4, 4, 6, 0, 0, 6, 0, 2,
     2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 6, 0, 2,
     2, 0, 4, 4, 4, 0, 1, 1, 1, 0, 6, 6, 6, 6, 0, 2,
@@ -85,9 +85,9 @@ int mapFloors[] = {
 
 int mapCeiling[] = {
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 3, 3, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
+    2, 3, 3, 3, 4, 6, 6, 2, 2, 1, 1, 2, 3, 4, 6, 2,
     2, 0, 3, 3, 3, 0, 4, 0, 4, 4, 6, 6, 6, 6, 0, 2,
-    2, 0, 3, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 6, 0, 2,
+    2, 0, 3, 0, 0, 0, 4, 0, 0, 0, 6, 0, 0, 6, 0, 2,
     2, 0, 3, 0, 4, 4, 4, 4, 4, 4, 6, 0, 0, 6, 0, 2,
     2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 6, 0, 2,
     2, 0, 4, 4, 4, 0, 1, 1, 1, 0, 6, 6, 6, 6, 0, 2,
@@ -330,7 +330,7 @@ SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
 
         float distance = std::min(distanceHorizontal, distanceVertical);
         float correctedDistance = distance * cos(degToRad(FixAngle(player->angle - rayAngle)));
-        distances[static_cast<int>(i / rayStep)] = correctedDistance;
+        distances[static_cast<int>(i / rayStep)] = distance;
         SDL_FRect rectangle;
         rectangle.x = i * (1024 / (player->FOV));
         rectangle.h = (64 * 512) / correctedDistance;
@@ -357,7 +357,9 @@ SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
 
         float deg = -degToRad(rayAngle);
         float rayAngleFix = cos(degToRad(FixAngle(player->angle - rayAngle)));
-        for (int y = rectangle.y + rectangle.h; y < 512; y += 2)
+        float drawX = i * (1024 / (player->FOV));
+        float drawWidth = (1024 / (player->FOV)) * rayStep;
+        for (int y = rectangle.y + rectangle.h; y < 512; y += drawWidth / 1.5)
         {
             float dy = y - (512 / 2.0);
             float textureX = player->pos.x / 2 + cos(deg) * 126 * 2 * 32 / dy / rayAngleFix;
@@ -371,10 +373,10 @@ SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
                 hexToRGB(textureColorHex, r, g, b);
                 SDL_SetRenderDrawColor(renderer, r, g, b, 255);
                 SDL_FRect rectangle;
-                rectangle.x = i * (1024 / (player->FOV));
-                rectangle.h = (1024 / (player->FOV)) * rayStep;
+                rectangle.x = drawX;
+                rectangle.h = drawWidth;
                 rectangle.y = y;
-                rectangle.w = (1024 / (player->FOV)) * rayStep;
+                rectangle.w = drawWidth;
                 SDL_RenderFillRectF(renderer, &rectangle);
             }
             textureX = player->pos.x / 2 + cos(deg) * 126 * 2 * 32 / dy / rayAngleFix;
@@ -388,10 +390,10 @@ SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
                 hexToRGB(textureColorHex, r, g, b);
                 SDL_SetRenderDrawColor(renderer, r, g, b, 255);
                 SDL_FRect rectangle;
-                rectangle.x = i * (1024 / (player->FOV));
-                rectangle.h = (1024 / (player->FOV)) * rayStep;
+                rectangle.x = drawX;
+                rectangle.h = drawWidth;
                 rectangle.y = 512 - y;
-                rectangle.w = (1024 / (player->FOV)) * rayStep;
+                rectangle.w = drawWidth;
                 SDL_RenderFillRectF(renderer, &rectangle);
             }
         }
@@ -468,7 +470,7 @@ void drawSprites(SDL_Renderer *renderer, Player *player)
                 {
                     float recX = projectedX + ((x * 256) / distance);
 
-                    if (static_cast<int>((recX) / (1024 / 240)) >= 0 && static_cast<int>((recX) / (1024 / 240)) < 241 && distance < distances[static_cast<int>((recX) / (1024 / 240))])
+                    if (static_cast<int>(glm::clamp((recX * 240) / 1024, 0.f, 240.f)) >= 0 && static_cast<int>(glm::clamp((recX * 240) / 1024, 0.f, 240.f)) < 241 && distance < distances[static_cast<int>(glm::clamp((recX * 240) / 1024, 0.f, 240.f))])
                     {
                         for (int y = 0; y < sprites[i].height; y++)
                         {
@@ -538,8 +540,8 @@ void handleInput(Player *player)
     if (keystate[SDL_SCANCODE_E])
     {
 
-        int cellIndexX = floor(((player->pos.x + (moveSpeed * cos(degToRad(player->angle)) * 4))) / cellWidth);
-        int cellIndexY = floor(((player->pos.y + (moveSpeed * sin(degToRad(player->angle)) * 4))) / cellWidth);
+        int cellIndexX = floor(((player->pos.x + (moveSpeed * cos(degToRad(player->angle)) * 4 * deltaTime))) / cellWidth);
+        int cellIndexY = floor(((player->pos.y + (moveSpeed * sin(degToRad(player->angle)) * 4 * deltaTime))) / cellWidth);
 
         int mapCellIndex = getCell(cellIndexX, cellIndexY);
 

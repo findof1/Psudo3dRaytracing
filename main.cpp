@@ -5,10 +5,14 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <array>
+#include <chrono>
 #include "textures.h"
+#include <vector>
 
-const float moveSpeed = 2.f;
-const float rotateSpeed = 3.f;
+const float moveSpeed = 100.f;
+const float rotateSpeed = 100.f;
+
+bool gameRunning = true;
 
 struct Player
 {
@@ -31,14 +35,18 @@ enum SpriteType
 struct Sprite
 {
     SpriteType type;
-    int state;
     float x, y, z;
     float width, height;
+    bool active;
 };
 
-Sprite sprites[1];
+float deltaTime;
+
+Sprite sprites[2];
 
 const float rayStep = 0.25;
+
+bool hasKey = false;
 
 float distances[241];
 
@@ -51,12 +59,45 @@ int map[] = {
     2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 6, 0, 2,
     2, 0, 4, 4, 4, 0, 1, 1, 1, 0, 6, 6, 6, 6, 0, 2,
     2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2,
-    2, 1, 1, 1, 1, 0, 1, 0, 6, 6, 6, 6, 6, 6, 6, 2,
+    2, 1, 1, 1, 1, 0, 1, 6, 6, 6, 6, 6, 6, 6, 6, 2,
     2, 0, 0, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0, 2,
     2, 0, 1, 1, 1, 1, 1, 0, 4, 4, 4, 4, 4, 4, 0, 2,
     2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 2,
     2, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 0, 2,
+    2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2,
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+int mapFloors[] = {
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    2, 3, 3, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
+    2, 0, 3, 3, 3, 0, 4, 0, 4, 4, 6, 6, 6, 6, 0, 2,
+    2, 0, 3, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 6, 0, 2,
+    2, 0, 3, 0, 4, 4, 4, 4, 4, 4, 6, 0, 0, 6, 0, 2,
+    2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 6, 0, 2,
+    2, 0, 4, 4, 4, 0, 1, 1, 1, 0, 6, 6, 6, 6, 0, 2,
+    2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2,
+    2, 1, 1, 1, 1, 0, 1, 6, 6, 6, 6, 6, 6, 6, 6, 2,
+    2, 0, 0, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0, 2,
+    2, 0, 1, 1, 1, 1, 1, 0, 4, 4, 4, 4, 4, 4, 0, 2,
     2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 2,
+    2, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 0, 2,
+    2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2,
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+
+int mapCeiling[] = {
+    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
+    2, 3, 3, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
+    2, 0, 3, 3, 3, 0, 4, 0, 4, 4, 6, 6, 6, 6, 0, 2,
+    2, 0, 3, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 6, 0, 2,
+    2, 0, 3, 0, 4, 4, 4, 4, 4, 4, 6, 0, 0, 6, 0, 2,
+    2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 6, 0, 2,
+    2, 0, 4, 4, 4, 0, 1, 1, 1, 0, 6, 6, 6, 6, 0, 2,
+    2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2,
+    2, 1, 1, 1, 1, 0, 1, 6, 6, 6, 6, 6, 6, 6, 6, 2,
+    2, 0, 0, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0, 2,
+    2, 0, 1, 1, 1, 1, 1, 0, 4, 4, 4, 4, 4, 4, 0, 2,
+    2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 2,
+    2, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 0, 2,
+    2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2,
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
 
 float FixAngle(float a)
@@ -74,6 +115,15 @@ float FixAngle(float a)
 
 void hexToRGB(int hexColor, Uint8 &r, Uint8 &g, Uint8 &b)
 {
+
+    b = (hexColor >> 16) & 0xFF;
+    g = (hexColor >> 8) & 0xFF;
+    r = hexColor & 0xFF;
+}
+
+void hexToRGB(int hexColor, Uint8 &r, Uint8 &g, Uint8 &b, Uint8 &a)
+{
+    a = (hexColor >> 24) & 0xFF;
     b = (hexColor >> 16) & 0xFF;
     g = (hexColor >> 8) & 0xFF;
     r = hexColor & 0xFF;
@@ -254,13 +304,12 @@ void raycast(Player *player, SDL_Renderer *renderer)
             depth++;
         }
 
-        rayAngle = FixAngle(rayAngle + rayStep);
         /*
-        SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
-        SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, horizontalRayX, horizontalRayY);
-        SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-        SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
-        */
+SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255);
+SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, horizontalRayX, horizontalRayY);
+SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
+*/
         int mappedPos;
         int hitType;
         // SDL_SetRenderDrawColor(renderer, 0, 0, 255, 255);
@@ -281,7 +330,7 @@ void raycast(Player *player, SDL_Renderer *renderer)
 
         float distance = std::min(distanceHorizontal, distanceVertical);
         float correctedDistance = distance * cos(degToRad(FixAngle(player->angle - rayAngle)));
-        distances[static_cast<int>(i / rayStep)] = distance;
+        distances[static_cast<int>(i / rayStep)] = correctedDistance;
         SDL_FRect rectangle;
         rectangle.x = i * (1024 / (player->FOV));
         rectangle.h = (64 * 512) / correctedDistance;
@@ -293,8 +342,7 @@ void raycast(Player *player, SDL_Renderer *renderer)
 
         for (int j = 0; j < 32; j++)
         {
-            uint32_t textureColorHex;
-            textureColorHex = textures[hitType - 1][mappedPos + j * 32];
+            uint32_t textureColorHex = textures[hitType - 1][mappedPos + j * 32];
             Uint8 r, g, b;
             hexToRGB(textureColorHex, r, g, b);
             SDL_SetRenderDrawColor(renderer, r, g, b, 255);
@@ -306,50 +354,141 @@ void raycast(Player *player, SDL_Renderer *renderer)
 
             SDL_RenderFillRectF(renderer, &smallRect);
         }
+
+        float deg = -degToRad(rayAngle);
+        float rayAngleFix = cos(degToRad(FixAngle(player->angle - rayAngle)));
+        for (int y = rectangle.y + rectangle.h; y < 512; y += 2)
+        {
+            float dy = y - (512 / 2.0);
+            float textureX = player->pos.x / 2 + cos(deg) * 126 * 2 * 32 / dy / rayAngleFix;
+            float textureY = player->pos.y / 2 - sin(deg) * 126 * 2 * 32 / dy / rayAngleFix;
+            int textureType = mapFloors[(int)(textureY / 32.0) * mapX + (int)(textureX / 32.0)];
+            if (textureType != 0)
+            {
+                int textureIndex = ((int)(textureY) % 32) * 32 + ((int)(textureX) % 32);
+                uint32_t textureColorHex = textures[textureType - 1][(int)(textureIndex)];
+                Uint8 r, g, b;
+                hexToRGB(textureColorHex, r, g, b);
+                SDL_SetRenderDrawColor(renderer, r, g, b, 255);
+                SDL_FRect rectangle;
+                rectangle.x = i * (1024 / (player->FOV));
+                rectangle.h = (1024 / (player->FOV)) * rayStep;
+                rectangle.y = y;
+                rectangle.w = (1024 / (player->FOV)) * rayStep;
+                SDL_RenderFillRectF(renderer, &rectangle);
+            }
+            textureX = player->pos.x / 2 + cos(deg) * 126 * 2 * 32 / dy / rayAngleFix;
+            textureY = player->pos.y / 2 - sin(deg) * 126 * 2 * 32 / dy / rayAngleFix;
+            textureType = mapCeiling[(int)(textureY / 32.0) * mapX + (int)(textureX / 32.0)];
+            if (textureType != 0)
+            {
+                int textureIndex = ((int)(textureY) % 32) * 32 + ((int)(textureX) % 32);
+                uint32_t textureColorHex = textures[textureType - 1][(int)(textureIndex)];
+                Uint8 r, g, b;
+                hexToRGB(textureColorHex, r, g, b);
+                SDL_SetRenderDrawColor(renderer, r, g, b, 255);
+                SDL_FRect rectangle;
+                rectangle.x = i * (1024 / (player->FOV));
+                rectangle.h = (1024 / (player->FOV)) * rayStep;
+                rectangle.y = 512 - y;
+                rectangle.w = (1024 / (player->FOV)) * rayStep;
+                SDL_RenderFillRectF(renderer, &rectangle);
+            }
+        }
+
+        rayAngle = FixAngle(rayAngle + rayStep);
     }
 }
 
 void drawSprites(SDL_Renderer *renderer, Player *player)
 {
-    for (int i = 0; i < 1; i++)
+    for (int i = 0; i < 2; i++)
     {
-        float spriteX = sprites[i].x - player->pos.x;
-        float spriteY = sprites[i].y - player->pos.y;
-        float spriteZ = sprites[i].z;
-
-        float angleRad = -degToRad(player->angle);
-        float rotatedX = spriteY * cos(angleRad) + spriteX * sin(angleRad);
-        float rotatedY = spriteX * cos(angleRad) - spriteY * sin(angleRad);
-
-        if (rotatedY > 0)
+        if (sprites[i].type == Key)
         {
-
-            float fovFactor = 512.0f / tan(degToRad(player->FOV / 2));
-
-            float projectedX = (rotatedX * fovFactor / rotatedY) + (1024 / 2);
-            float projectedY = (spriteZ * fovFactor / rotatedY) + (512 / 2);
-
-            float distance = sqrt(pow(spriteX, 2) + pow(spriteY, 2));
-
-            float preCalculatedWidth = (1024 / (player->FOV)) * rayStep + (1024.f / distance);
-            float preCalculatedHeight = (1024 / (player->FOV)) * rayStep + (512.f / distance);
-
-            for (int x = 0; x < sprites[i].width; x++)
+            float distance = sqrt(pow(sprites[i].x - player->pos.x, 2) + pow(sprites[i].y - player->pos.y, 2));
+            if (distance < 5)
             {
-                float recX = projectedX + ((x * 256) / distance);
+                hasKey = true;
+                sprites[i].active = false;
+            }
+        }
 
-                if (recX >= 0 && distance < distances[static_cast<int>((recX) / (1024 / 240))])
+        if (sprites[i].type == Enemy)
+        {
+            float distance = sqrt(pow(sprites[i].x - player->pos.x, 2) + pow(sprites[i].y - player->pos.y, 2));
+            if (distance < 10)
+            {
+                gameRunning = false;
+            }
+        }
+
+        if (sprites[i].active == true)
+        {
+            float spriteX = sprites[i].x - player->pos.x;
+            float spriteY = sprites[i].y - player->pos.y;
+            float spriteZ = sprites[i].z;
+
+            float angleRad = -degToRad(player->angle);
+            float rotatedX = spriteY * cos(angleRad) + spriteX * sin(angleRad);
+            float rotatedY = spriteX * cos(angleRad) - spriteY * sin(angleRad);
+
+            if (rotatedY > 0)
+            {
+
+                float fovFactor = 512.0f / tan(degToRad(player->FOV / 2));
+
+                float projectedX = (rotatedX * fovFactor / rotatedY) + (1024 / 2);
+                float projectedY = (spriteZ * fovFactor / rotatedY) + (512 / 2);
+
+                float distance = sqrt(pow(spriteX, 2) + pow(spriteY, 2));
+
+                float preCalculatedWidth = ((1024 / (player->FOV)) * rayStep + (1024.f / distance)) * 0.5;
+                float preCalculatedHeight = ((1024 / (player->FOV)) * rayStep + (512.f / distance)) * 0.5;
+
+                const uint32_t *texture;
+                int textureHeight;
+                int textureWidth;
+
+                if (sprites[i].type == Key)
                 {
+                    texture = keyTexture;
+                    textureHeight = 5;
+                    textureWidth = 20;
+                }
 
-                    for (int y = 0; y < sprites[i].height; y++)
+                if (sprites[i].type == Enemy)
+                {
+                    texture = enemyTexture;
+                    textureHeight = 100;
+                    textureWidth = 40;
+                }
+
+                for (int x = 0; x < sprites[i].width; x++)
+                {
+                    float recX = projectedX + ((x * 256) / distance);
+
+                    if (static_cast<int>((recX) / (1024 / 240)) >= 0 && static_cast<int>((recX) / (1024 / 240)) < 241 && distance < distances[static_cast<int>((recX) / (1024 / 240))])
                     {
-                        SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
-                        SDL_FRect rectangle;
-                        rectangle.x = recX;
-                        rectangle.y = projectedY - ((y * 256) / distance);
-                        rectangle.w = preCalculatedWidth;
-                        rectangle.h = preCalculatedHeight;
-                        SDL_RenderFillRectF(renderer, &rectangle);
+                        for (int y = 0; y < sprites[i].height; y++)
+                        {
+                            uint32_t textureColorHex;
+
+                            textureColorHex = texture[x + (textureHeight - 1 - y) * textureWidth];
+
+                            Uint8 r, g, b, a;
+                            hexToRGB(textureColorHex, r, g, b, a);
+                            SDL_SetRenderDrawColor(renderer, r, g, b, 255);
+                            if (a != 0)
+                            {
+                                SDL_FRect rectangle;
+                                rectangle.x = recX;
+                                rectangle.y = projectedY - ((y * 256) / distance);
+                                rectangle.w = preCalculatedWidth;
+                                rectangle.h = preCalculatedHeight;
+                                SDL_RenderFillRectF(renderer, &rectangle);
+                            }
+                        }
                     }
                 }
             }
@@ -363,47 +502,48 @@ void handleInput(Player *player)
 
     if (keystate[SDL_SCANCODE_W])
     {
-        int cellIndexX = floor(((player->pos.x + (moveSpeed * cos(degToRad(player->angle)))) * 1.0) / cellWidth);
-        int cellIndexY = floor(((player->pos.y + (moveSpeed * sin(degToRad(player->angle)))) * 1.0) / cellWidth);
+        int cellIndexX = floor(((player->pos.x + (moveSpeed * cos(degToRad(player->angle)) * deltaTime)) * 1.0) / cellWidth);
+        int cellIndexY = floor(((player->pos.y + (moveSpeed * sin(degToRad(player->angle)) * deltaTime)) * 1.0) / cellWidth);
 
         int mapCellIndex = getCell(cellIndexX, cellIndexY);
 
         if (map[mapCellIndex] == 0)
         {
-            player->pos.x += moveSpeed * cos(degToRad(player->angle));
-            player->pos.y += moveSpeed * sin(degToRad(player->angle));
+            player->pos.x += moveSpeed * cos(degToRad(player->angle)) * deltaTime;
+            player->pos.y += moveSpeed * sin(degToRad(player->angle)) * deltaTime;
         }
     }
     if (keystate[SDL_SCANCODE_S])
     {
-        int cellIndexX = floor(((player->pos.x - (moveSpeed * cos(degToRad(player->angle)) * 1.1))) / cellWidth);
-        int cellIndexY = floor(((player->pos.y - (moveSpeed * sin(degToRad(player->angle)) * 1.1))) / cellWidth);
+        int cellIndexX = floor(((player->pos.x - (moveSpeed * cos(degToRad(player->angle)) * 1.1 * deltaTime))) / cellWidth);
+        int cellIndexY = floor(((player->pos.y - (moveSpeed * sin(degToRad(player->angle)) * 1.1 * deltaTime))) / cellWidth);
         int mapCellIndex = getCell(cellIndexX, cellIndexY);
 
         if (map[mapCellIndex] == 0)
         {
-            player->pos.x -= moveSpeed * cos(degToRad(player->angle));
-            player->pos.y -= moveSpeed * sin(degToRad(player->angle));
+            player->pos.x -= moveSpeed * cos(degToRad(player->angle)) * deltaTime;
+            player->pos.y -= moveSpeed * sin(degToRad(player->angle)) * deltaTime;
         }
     }
 
     if (keystate[SDL_SCANCODE_A])
     {
-        player->angle -= rotateSpeed;
+        player->angle -= rotateSpeed * deltaTime;
     }
     if (keystate[SDL_SCANCODE_D])
     {
-        player->angle += rotateSpeed;
+        player->angle += rotateSpeed * deltaTime;
     }
 
     if (keystate[SDL_SCANCODE_E])
     {
+
         int cellIndexX = floor(((player->pos.x + (moveSpeed * cos(degToRad(player->angle)) * 4))) / cellWidth);
         int cellIndexY = floor(((player->pos.y + (moveSpeed * sin(degToRad(player->angle)) * 4))) / cellWidth);
 
         int mapCellIndex = getCell(cellIndexX, cellIndexY);
 
-        if (map[mapCellIndex] == 5)
+        if (map[mapCellIndex] == 5 && hasKey == true)
         {
             map[mapCellIndex] = 0;
         }
@@ -437,24 +577,44 @@ int main()
 
     Player player = {{80.0f, 80.0f}, 0.0f, 60};
     Sprite key;
-    key.state = 1;
+    key.active = true;
     key.type = Key;
-    key.x = 85;
-    key.y = 85;
-    key.z = 20;
+    key.x = 468;
+    key.y = 596;
+    key.z = 0;
     key.width = 20;
-    key.height = 60;
+    key.height = 5;
     sprites[0] = key;
 
-    bool running = true;
-    while (running)
+    Sprite enemy;
+    enemy.active = true;
+    enemy.type = Enemy;
+    enemy.x = 400;
+    enemy.y = 80;
+    enemy.z = 20;
+    enemy.width = 40;
+    enemy.height = 100;
+    sprites[1] = enemy;
+
+    using clock = std::chrono::high_resolution_clock;
+    auto startTime = clock::now();
+    auto lastTime = clock::now();
+    while (gameRunning)
     {
+        auto currentTime = clock::now();
+        std::chrono::duration<float> elapsed = currentTime - startTime;
+        deltaTime = ((std::chrono::duration<float>)(currentTime - lastTime)).count();
+
+        lastTime = currentTime;
+
+        sprites[0].z = 3.0f * cos(elapsed.count() * 3);
+
         SDL_Event event;
         while (SDL_PollEvent(&event))
         {
             if (event.type == SDL_QUIT)
             {
-                running = false;
+                gameRunning = false;
             }
         }
 

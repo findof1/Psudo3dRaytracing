@@ -22,7 +22,7 @@ struct Player
 };
 #define mapX 16
 #define mapY 16
-#define mapS 256
+#define mapS 16 * 32
 #define cellWidth 64
 
 enum SpriteType
@@ -49,6 +49,8 @@ const float rayStep = 0.25;
 bool hasKey = false;
 
 float distances[241];
+
+int maxDepth = std::max(mapX, mapY);
 
 int map[] = {
     2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
@@ -191,7 +193,7 @@ void raycast(Player *player, SDL_Renderer *renderer)
         int mappedPosHorizontal;
         int hitTypeHorizontal;
 
-        while (depth < 16)
+        while (depth < maxDepth)
         {
 
             if (sin(degToRad(rayAngle)) > 0)
@@ -221,19 +223,19 @@ void raycast(Player *player, SDL_Renderer *renderer)
 
             if (mapCellIndex == -1)
             {
-                depth = 16;
+                depth = maxDepth;
             }
             if (map[mapCellIndex] != 0)
             {
                 hitTypeHorizontal = map[mapCellIndex];
-                depth = 16;
+                depth = maxDepth;
                 mappedPosHorizontal = static_cast<int>((rayX - cellIndexX * cellWidth) / 2.0f);
                 distanceHorizontal = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
             }
             if (map[getCell(cellIndexX, cellIndexY - 1)] != 0)
             {
                 hitTypeHorizontal = map[getCell(cellIndexX, cellIndexY - 1)];
-                depth = 16;
+                depth = maxDepth;
                 mappedPosHorizontal = static_cast<int>((rayX - cellIndexX * cellWidth) / 2.0f);
                 distanceHorizontal = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
             }
@@ -255,7 +257,7 @@ void raycast(Player *player, SDL_Renderer *renderer)
         cellIndexX = floor(rayX / cellWidth);
 
         depth = 0;
-        while (depth < 16)
+        while (depth < maxDepth)
         {
 
             if (cos(degToRad(rayAngle)) > 0)
@@ -284,20 +286,20 @@ void raycast(Player *player, SDL_Renderer *renderer)
 
             if (mapCellIndex == -1)
             {
-                depth = 16;
+                depth = maxDepth;
             }
 
             if (map[mapCellIndex] != 0)
             {
                 hitTypeVertical = map[mapCellIndex];
-                depth = 16;
+                depth = maxDepth;
                 mappedPosVertical = static_cast<int>((rayY - cellIndexY * cellWidth) / 2.0f);
                 distanceVertical = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
             }
             if (map[getCell(cellIndexX - 1, cellIndexY)] != 0)
             {
                 hitTypeVertical = map[getCell(cellIndexX - 1, cellIndexY)];
-                depth = 16;
+                depth = maxDepth;
                 mappedPosVertical = static_cast<int>((rayY - cellIndexY * cellWidth) / 2.0f);
                 distanceVertical = sqrt(pow(rayX - player->pos.x, 2) + pow(rayY - player->pos.y, 2));
             }

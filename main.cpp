@@ -8,6 +8,7 @@
 #include <chrono>
 #include "textures.h"
 #include <vector>
+#include <fstream>
 
 const float moveSpeed = 100.f;
 const float rotateSpeed = 100.f;
@@ -20,10 +21,6 @@ struct Player
     float angle;
     float FOV;
 };
-#define mapX 16
-#define mapY 16
-#define mapS 16 * 32
-#define cellWidth 64
 
 enum SpriteType
 {
@@ -46,61 +43,50 @@ Sprite sprites[2];
 
 const float rayStep = 0.25;
 
-bool hasKey = false;
-
 float distances[241];
 
-int maxDepth = std::max(mapX, mapY);
+int mapX;
+int mapY;
+int cellWidth = 64;
+int maxDepth;
 
-int map[] = {
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
-    2, 0, 3, 3, 3, 0, 4, 0, 4, 4, 6, 6, 6, 6, 0, 2,
-    2, 0, 3, 0, 0, 0, 4, 0, 0, 0, 5, 0, 0, 6, 0, 2,
-    2, 0, 3, 0, 4, 4, 4, 4, 4, 4, 6, 0, 0, 6, 0, 2,
-    2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 6, 0, 2,
-    2, 0, 4, 4, 4, 0, 1, 1, 1, 0, 6, 6, 6, 6, 0, 2,
-    2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2,
-    2, 1, 1, 1, 1, 0, 1, 6, 6, 6, 6, 6, 6, 6, 6, 2,
-    2, 0, 0, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0, 2,
-    2, 0, 1, 1, 1, 1, 1, 0, 4, 4, 4, 4, 4, 4, 0, 2,
-    2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 2,
-    2, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 0, 2,
-    2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
-int mapFloors[] = {
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 3, 3, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2,
-    2, 7, 3, 3, 3, 0, 4, 0, 4, 4, 6, 6, 6, 6, 0, 2,
-    2, 7, 3, 0, 0, 0, 4, 0, 0, 0, 7, 0, 0, 6, 0, 2,
-    2, 7, 3, 0, 4, 4, 4, 4, 4, 4, 6, 0, 0, 6, 0, 2,
-    2, 7, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 6, 0, 2,
-    2, 7, 4, 4, 4, 0, 1, 1, 1, 0, 6, 6, 6, 6, 0, 2,
-    2, 7, 7, 7, 7, 7, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2,
-    2, 1, 1, 1, 1, 0, 1, 6, 6, 6, 6, 6, 6, 6, 6, 2,
-    2, 0, 0, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0, 2,
-    2, 0, 1, 1, 1, 1, 1, 0, 4, 4, 4, 4, 4, 4, 0, 2,
-    2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 2,
-    2, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 0, 2,
-    2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+std::vector<int> map;
+std::vector<int> mapFloors;
+std::vector<int> mapCeiling;
 
-int mapCeiling[] = {
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2,
-    2, 3, 3, 3, 4, 6, 6, 2, 2, 1, 1, 2, 3, 4, 6, 2,
-    2, 0, 3, 3, 3, 0, 4, 0, 4, 4, 6, 6, 6, 6, 0, 2,
-    2, 0, 3, 0, 0, 0, 4, 0, 0, 0, 7, 0, 0, 6, 0, 2,
-    2, 0, 3, 0, 4, 4, 4, 4, 4, 4, 6, 0, 0, 6, 0, 2,
-    2, 0, 0, 0, 4, 0, 0, 0, 0, 0, 6, 0, 0, 6, 0, 2,
-    2, 0, 4, 4, 4, 0, 1, 1, 1, 0, 6, 6, 6, 6, 0, 2,
-    2, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2,
-    2, 1, 1, 1, 1, 0, 1, 6, 6, 6, 6, 6, 6, 6, 6, 2,
-    2, 0, 0, 0, 0, 0, 1, 0, 6, 0, 0, 0, 0, 0, 0, 2,
-    2, 0, 1, 1, 1, 1, 1, 0, 4, 4, 4, 4, 4, 4, 0, 2,
-    2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 2,
-    2, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 4, 0, 2,
-    2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 2,
-    2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2};
+void deserialize(const std::string &filename)
+{
+    std::ifstream file(filename, std::ios::binary | std::ios::in);
+    if (file)
+    {
+        file.read(reinterpret_cast<char *>(&mapX), sizeof(int));
+        file.read(reinterpret_cast<char *>(&mapY), sizeof(int));
+        maxDepth = std::max(mapX, mapY);
+
+        size_t count;
+        file.read(reinterpret_cast<char *>(&count), sizeof(count));
+        std::cout << "Deserializing map with count: " << count << "\n";
+        map.resize(count);
+        file.read(reinterpret_cast<char *>(map.data()), sizeof(int) * count);
+
+        count;
+        file.read(reinterpret_cast<char *>(&count), sizeof(count));
+        std::cout << "Deserializing mapFloors with count: " << count << "\n";
+        mapFloors.resize(count);
+        file.read(reinterpret_cast<char *>(mapFloors.data()), sizeof(int) * count);
+
+        count;
+        file.read(reinterpret_cast<char *>(&count), sizeof(count));
+        std::cout << "Deserializing mapCeiling with count: " << count << "\n";
+        mapCeiling.resize(count);
+        file.read(reinterpret_cast<char *>(mapCeiling.data()), sizeof(int) * count);
+        file.close();
+    }
+    else
+    {
+        std::cerr << "Error opening file for reading.\n";
+    }
+}
 
 float FixAngle(float a)
 {
@@ -413,7 +399,6 @@ void drawSprites(SDL_Renderer *renderer, Player *player)
             float distance = sqrt(pow(sprites[i].x - player->pos.x, 2) + pow(sprites[i].y - player->pos.y, 2));
             if (distance < 5)
             {
-                hasKey = true;
                 sprites[i].active = false;
             }
         }
@@ -547,7 +532,7 @@ void handleInput(Player *player)
 
         int mapCellIndex = getCell(cellIndexX, cellIndexY);
 
-        if (map[mapCellIndex] == 5 && hasKey == true)
+        if (map[mapCellIndex] == 5)
         {
             map[mapCellIndex] = 0;
         }
@@ -556,6 +541,8 @@ void handleInput(Player *player)
 
 int main()
 {
+    deserialize("map.dat");
+
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
         std::cerr << "SDL could not initialize! SDL_Error: " << SDL_GetError() << std::endl;
@@ -580,6 +567,7 @@ int main()
     }
 
     Player player = {{80.0f, 80.0f}, 0.0f, 60};
+    /*
     Sprite key;
     key.active = true;
     key.type = Key;
@@ -589,7 +577,7 @@ int main()
     key.width = 20;
     key.height = 5;
     sprites[0] = key;
-
+*/
     Sprite enemy;
     enemy.active = true;
     enemy.type = Enemy;
@@ -611,7 +599,7 @@ int main()
 
         lastTime = currentTime;
 
-        sprites[0].z = 3.0f * cos(elapsed.count() * 3);
+        // sprites[0].z = 3.0f * cos(elapsed.count() * 3);
 
         SDL_Event event;
         while (SDL_PollEvent(&event))

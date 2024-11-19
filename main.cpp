@@ -6,9 +6,13 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <array>
 #include <chrono>
+#include <algorithm>
+#include <cmath>
 #include "textures.h"
 #include <vector>
 #include <fstream>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 const float moveSpeed = 100.f;
 const float rotateSpeed = 100.f;
@@ -25,7 +29,7 @@ struct Player
 enum SpriteType
 {
     Key,
-    Light,
+    Bomb,
     Enemy
 };
 
@@ -33,15 +37,50 @@ struct Sprite
 {
     SpriteType type;
     float x, y, z;
-    float width, height;
+    float scaleX = 1;
+    float scaleY = 1;
     bool active;
 };
 
 float deltaTime;
 
-Sprite sprites[2];
+const int spriteCount = 4;
+Sprite sprites[spriteCount];
 
 const float rayStep = 0.25;
+
+std::vector<std::string> textureFilepaths = {
+    "./textures/texture-1.png",
+    "./textures/texture-2.png",
+    "./textures/texture-3.png",
+    "./textures/texture-4.png",
+    "./textures/texture-5.png",
+    "./textures/texture-6.png",
+    "./textures/Enemy-Placeholder.png",
+    "./textures/bomb.png"};
+
+struct Texture
+{
+    int width, height, channels;
+    unsigned char *data;
+};
+
+std::vector<Texture> loadedTextures;
+
+void loadTextures()
+{
+    for (const auto &filepath : textureFilepaths)
+    {
+        Texture tex;
+        tex.data = stbi_load(filepath.c_str(), &tex.width, &tex.height, &tex.channels, 4);
+        if (!tex.data)
+        {
+            std::cerr << "Failed to load texture: " << filepath << std::endl;
+            continue;
+        }
+        loadedTextures.push_back(tex);
+    }
+}
 
 float distances[241];
 
@@ -53,6 +92,8 @@ int maxDepth;
 std::vector<int> map;
 std::vector<int> mapFloors;
 std::vector<int> mapCeiling;
+
+int bombCount = 0;
 
 void deserialize(const std::string &filename)
 {
@@ -101,20 +142,47 @@ float FixAngle(float a)
     return a;
 }
 
-void hexToRGB(int hexColor, Uint8 &r, Uint8 &g, Uint8 &b)
+void getRGBFromTexture(int hitType, int x, int y, uint8_t &r, uint8_t &g, uint8_t &b)
 {
+    if (hitType < 1 || hitType > loadedTextures.size())
+    {
+        std::cerr << "Invalid hitType: " << hitType << std::endl;
+        return;
+    }
 
-    b = (hexColor >> 16) & 0xFF;
-    g = (hexColor >> 8) & 0xFF;
-    r = hexColor & 0xFF;
+    const Texture &tex = loadedTextures[hitType - 1];
+    if (x < 0 || x >= tex.width || y < 0 || y >= tex.height)
+    {
+        std::cerr << "Coordinates out of bounds: " << x << ", " << y << std::endl;
+        return;
+    }
+
+    int index = (y * tex.width + x) * 4;
+    r = tex.data[index];
+    g = tex.data[index + 1];
+    b = tex.data[index + 2];
 }
 
-void hexToRGB(int hexColor, Uint8 &r, Uint8 &g, Uint8 &b, Uint8 &a)
+void getRGBFromTexture(int hitType, int x, int y, uint8_t &r, uint8_t &g, uint8_t &b, uint8_t &a)
 {
-    a = (hexColor >> 24) & 0xFF;
-    b = (hexColor >> 16) & 0xFF;
-    g = (hexColor >> 8) & 0xFF;
-    r = hexColor & 0xFF;
+    if (hitType < 1 || hitType > loadedTextures.size())
+    {
+        std::cerr << "Invalid hitType: " << hitType << std::endl;
+        return;
+    }
+
+    const Texture &tex = loadedTextures[hitType - 1];
+    if (x < 0 || x >= tex.width || y < 0 || y >= tex.height)
+    {
+        std::cerr << "Coordinates out of bounds: " << x << ", " << y << std::endl;
+        return;
+    }
+
+    int index = (y * tex.width + x) * 4;
+    r = tex.data[index];
+    g = tex.data[index + 1];
+    b = tex.data[index + 2];
+    a = tex.data[index + 3];
 }
 
 float degToRad(float angle) { return angle * M_PI / 180.0; }
@@ -332,7 +400,7 @@ SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
         {
             uint32_t textureColorHex = textures[hitType - 1][mappedPos + j * 32];
             Uint8 r, g, b;
-            hexToRGB(textureColorHex, r, g, b);
+            getRGBFromTexture(hitType, mappedPos, j, r, g, b);
             SDL_SetRenderDrawColor(renderer, r, g, b, 255);
             float smallRectY = rectangle.y + j * smallRectHeight;
 
@@ -355,10 +423,8 @@ SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
             int textureType = mapFloors[(int)(textureY / 32.0) * mapX + (int)(textureX / 32.0)];
             if (textureType != 0)
             {
-                int textureIndex = ((int)(textureY) % 32) * 32 + ((int)(textureX) % 32);
-                uint32_t textureColorHex = textures[textureType - 1][(int)(textureIndex)];
-                Uint8 r, g, b;
-                hexToRGB(textureColorHex, r, g, b);
+                uint8_t r, g, b;
+                getRGBFromTexture(textureType, (int)(textureX) % 32, (int)(textureY) % 32, r, g, b);
                 SDL_SetRenderDrawColor(renderer, r, g, b, 255);
                 SDL_FRect rectangle;
                 rectangle.x = drawX;
@@ -372,10 +438,8 @@ SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
             textureType = mapCeiling[(int)(textureY / 32.0) * mapX + (int)(textureX / 32.0)];
             if (textureType != 0)
             {
-                int textureIndex = ((int)(textureY) % 32) * 32 + ((int)(textureX) % 32);
-                uint32_t textureColorHex = textures[textureType - 1][(int)(textureIndex)];
                 Uint8 r, g, b;
-                hexToRGB(textureColorHex, r, g, b);
+                getRGBFromTexture(textureType, (int)(textureX) % 32, (int)(textureY) % 32, r, g, b);
                 SDL_SetRenderDrawColor(renderer, r, g, b, 255);
                 SDL_FRect rectangle;
                 rectangle.x = drawX;
@@ -392,7 +456,13 @@ SDL_RenderDrawLine(renderer, player->pos.x, player->pos.y, rayX, rayY);
 
 void drawSprites(SDL_Renderer *renderer, Player *player)
 {
-    for (int i = 0; i < 2; i++)
+    std::sort(sprites, sprites + spriteCount,
+              [player](const Sprite &a, const Sprite &b)
+              {
+                  return glm::distance(glm::vec2(a.x, a.y), glm::vec2(player->pos.x, player->pos.y)) > glm::distance(glm::vec2(b.x, b.y), glm::vec2(player->pos.x, player->pos.y));
+              });
+
+    for (int i = 0; i < spriteCount; i++)
     {
         if (sprites[i].type == Key)
         {
@@ -403,12 +473,54 @@ void drawSprites(SDL_Renderer *renderer, Player *player)
             }
         }
 
-        if (sprites[i].type == Enemy)
+        if (sprites[i].type == Bomb)
         {
             float distance = sqrt(pow(sprites[i].x - player->pos.x, 2) + pow(sprites[i].y - player->pos.y, 2));
+            if (distance < 15)
+            {
+                sprites[i].active = false;
+                bombCount += 1;
+            }
+        }
+
+        if (sprites[i].type == Enemy)
+        {
+
+            float deltaX = player->pos.x - sprites[i].x;
+            float deltaY = player->pos.y - sprites[i].y;
+
+            float distance = std::sqrt(deltaX * deltaX + deltaY * deltaY);
             if (distance < 10)
             {
                 gameRunning = false;
+            }
+
+            if (distance > 0)
+            {
+                deltaX /= distance;
+                deltaY /= distance;
+
+                float enemySpeed = 35;
+                float newX = sprites[i].x + deltaX * enemySpeed * deltaTime;
+                float newY = sprites[i].y + deltaY * enemySpeed * deltaTime;
+
+                int cellIndexX = floor(newX / cellWidth);
+                int cellIndexY = floor(sprites[i].y / cellWidth);
+                int mapCellIndexX = getCell(cellIndexX, cellIndexY);
+
+                if (map[mapCellIndexX] == 0)
+                {
+                    sprites[i].x = newX;
+                }
+
+                cellIndexX = floor(sprites[i].x / cellWidth);
+                cellIndexY = floor(newY / cellWidth);
+                int mapCellIndexY = getCell(cellIndexX, cellIndexY);
+
+                if (map[mapCellIndexY] == 0)
+                {
+                    sprites[i].y = newY;
+                }
             }
         }
 
@@ -435,44 +547,41 @@ void drawSprites(SDL_Renderer *renderer, Player *player)
                 float preCalculatedWidth = ((1024 / (player->FOV)) * rayStep + (1024.f / distance)) * 0.5;
                 float preCalculatedHeight = ((1024 / (player->FOV)) * rayStep + (512.f / distance)) * 0.5;
 
-                const uint32_t *texture;
-                int textureHeight;
-                int textureWidth;
+                int textureIndex;
 
                 if (sprites[i].type == Key)
                 {
-                    texture = keyTexture;
-                    textureHeight = 5;
-                    textureWidth = 20;
+                    textureIndex = 6;
+                }
+
+                if (sprites[i].type == Bomb)
+                {
+                    textureIndex = 7;
                 }
 
                 if (sprites[i].type == Enemy)
                 {
-                    texture = enemyTexture;
-                    textureHeight = 100;
-                    textureWidth = 40;
+                    textureIndex = 6;
                 }
 
-                for (int x = 0; x < sprites[i].width; x++)
+                for (int x = 0; x < loadedTextures[textureIndex].width; x++)
                 {
-                    float recX = projectedX + ((x * 256) / distance);
+                    float recX = projectedX + ((x * (256 * sprites[i].scaleX)) / distance);
 
                     if (static_cast<int>(glm::clamp((recX * 240) / 1024, 0.f, 240.f)) >= 0 && static_cast<int>(glm::clamp((recX * 240) / 1024, 0.f, 240.f)) < 241 && distance < distances[static_cast<int>(glm::clamp((recX * 240) / 1024, 0.f, 240.f))])
                     {
-                        for (int y = 0; y < sprites[i].height; y++)
+
+                        for (int y = 0; y < loadedTextures[textureIndex].height; y++)
                         {
-                            uint32_t textureColorHex;
-
-                            textureColorHex = texture[x + (textureHeight - 1 - y) * textureWidth];
-
                             Uint8 r, g, b, a;
-                            hexToRGB(textureColorHex, r, g, b, a);
+                            getRGBFromTexture(textureIndex + 1, x, loadedTextures[textureIndex].height - 1 - y, r, g, b, a);
+
                             SDL_SetRenderDrawColor(renderer, r, g, b, 255);
                             if (a != 0)
                             {
                                 SDL_FRect rectangle;
                                 rectangle.x = recX;
-                                rectangle.y = projectedY - ((y * 256) / distance);
+                                rectangle.y = projectedY - ((y * (256 * sprites[i].scaleY)) / distance);
                                 rectangle.w = preCalculatedWidth;
                                 rectangle.h = preCalculatedHeight;
                                 SDL_RenderFillRectF(renderer, &rectangle);
@@ -541,6 +650,9 @@ void handleInput(Player *player)
 
 int main()
 {
+
+    loadTextures();
+    std::cout << loadedTextures.size();
     deserialize("map.dat");
 
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
@@ -578,15 +690,30 @@ int main()
     key.height = 5;
     sprites[0] = key;
 */
+
     Sprite enemy;
     enemy.active = true;
     enemy.type = Enemy;
     enemy.x = 400;
     enemy.y = 80;
     enemy.z = 20;
-    enemy.width = 40;
-    enemy.height = 100;
+    sprites[0] = enemy;
+
+    enemy.x = 500;
     sprites[1] = enemy;
+
+    enemy.x = 600;
+    enemy.scaleX = 1.2;
+    enemy.scaleY = 1.2;
+    sprites[2] = enemy;
+
+    Sprite bomb;
+    bomb.active = true;
+    bomb.type = Bomb;
+    bomb.x = 468;
+    bomb.y = 80;
+    bomb.z = 0;
+    sprites[3] = bomb;
 
     using clock = std::chrono::high_resolution_clock;
     auto startTime = clock::now();
